@@ -183,9 +183,6 @@ const RoomManagement = () => {
                     <option value="">Select room type</option>
                     <option value="Lecture Hall">Lecture Hall</option>
                     <option value="Laboratory">Laboratory</option>
-                    <option value="Seminar Room">Seminar Room</option>
-                    <option value="Computer Lab">Computer Lab</option>
-                    <option value="Library">Library</option>
                   </select>
                 </div>
                 <DialogFooter>

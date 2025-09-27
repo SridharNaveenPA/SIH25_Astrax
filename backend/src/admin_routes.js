@@ -80,11 +80,11 @@ router.get('/subjects', async (req, res) => {
 });
 
 router.post('/subjects', async (req, res) => {
-  const { course_code, course_name, semester, credits, prerequisites, instructor_id } = req.body;
+  const { course_code, course_name, semester, credits, course_type, min_lab_hours, min_theory_hours, max_capacity, prerequisites, instructor_id } = req.body;
   try {
     const result = await pool.query(
-      'INSERT INTO subjects (course_code, course_name, semester, credits, prerequisites, instructor_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [course_code, course_name, semester, credits, prerequisites, instructor_id]
+      'INSERT INTO subjects (course_code, course_name, semester, credits, course_type, min_lab_hours, min_theory_hours, max_capacity, prerequisites, instructor_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+      [course_code, course_name, semester, credits, course_type, min_lab_hours, min_theory_hours, max_capacity, prerequisites, instructor_id]
     );
     res.status(201).json(result.rows[0]);
   } catch (error) {
@@ -99,11 +99,11 @@ router.post('/subjects', async (req, res) => {
 
 router.put('/subjects/:id', async (req, res) => {
   const { id } = req.params;
-  const { course_code, course_name, semester, credits, prerequisites, instructor_id } = req.body;
+  const { course_code, course_name, semester, credits, course_type, min_lab_hours, min_theory_hours, max_capacity, prerequisites, instructor_id } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE subjects SET course_code = $1, course_name = $2, semester = $3, credits = $4, prerequisites = $5, instructor_id = $6 WHERE id = $7 RETURNING *',
-      [course_code, course_name, semester, credits, prerequisites, instructor_id, id]
+      'UPDATE subjects SET course_code = $1, course_name = $2, semester = $3, credits = $4, course_type = $5, min_lab_hours = $6, min_theory_hours = $7, max_capacity = $8, prerequisites = $9, instructor_id = $10 WHERE id = $11 RETURNING *',
+      [course_code, course_name, semester, credits, course_type, min_lab_hours, min_theory_hours, max_capacity, prerequisites, instructor_id, id]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Subject not found' });
@@ -225,6 +225,50 @@ router.get('/instructors', async (req, res) => {
   } catch (error) {
     console.error('Error fetching instructors:', error);
     res.status(500).json({ error: 'Failed to fetch instructors' });
+  }
+});
+
+// Credit Limits CRUD operations
+router.get('/credit-limits', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM credit_limits ORDER BY semester_number');
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching credit limits:', error);
+    res.status(500).json({ error: 'Failed to fetch credit limits' });
+  }
+});
+
+router.put('/credit-limits/:semester_number', async (req, res) => {
+  const { semester_number } = req.params;
+  const { max_credits } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE credit_limits SET max_credits = $1 WHERE semester_number = $2 RETURNING *',
+      [max_credits, semester_number]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Credit limit not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating credit limit:', error);
+    res.status(500).json({ error: 'Failed to update credit limit' });
+  }
+});
+
+// Get all courses for prerequisites dropdown
+router.get('/courses', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, course_code, course_name 
+      FROM subjects 
+      ORDER BY course_code
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching courses:', error);
+    res.status(500).json({ error: 'Failed to fetch courses' });
   }
 });
 

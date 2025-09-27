@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import RoomManagement from "@/components/RoomManagement";
 import SubjectManagement from "@/components/SubjectManagement";
 import FacultyManagement from "@/components/FacultyManagement";
+import CreditLimitManagement from "@/components/CreditLimitManagement";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -66,24 +67,29 @@ const AdminDashboard = () => {
         </div>
 
         {/* Management Tabs */}
-        <Tabs defaultValue="subjects" className="space-y-4">
+        <Tabs defaultValue="rooms" className="space-y-4">
           <TabsList>
-            <TabsTrigger value="subjects">Subjects</TabsTrigger>
-            <TabsTrigger value="faculty">Faculty</TabsTrigger>
             <TabsTrigger value="rooms">Rooms</TabsTrigger>
+            <TabsTrigger value="faculty">Faculty</TabsTrigger>
+            <TabsTrigger value="subjects">Subjects</TabsTrigger>
+            <TabsTrigger value="credit-limits">Credit Limits</TabsTrigger>
             <TabsTrigger value="timetables">Timetables</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="subjects">
-            <SubjectManagement />
+          <TabsContent value="rooms">
+            <RoomManagement />
           </TabsContent>
 
           <TabsContent value="faculty">
             <FacultyManagement />
           </TabsContent>
 
-          <TabsContent value="rooms">
-            <RoomManagement />
+          <TabsContent value="subjects">
+            <SubjectManagement />
+          </TabsContent>
+
+          <TabsContent value="credit-limits">
+            <CreditLimitManagement />
           </TabsContent>
 
           <TabsContent value="timetables">
