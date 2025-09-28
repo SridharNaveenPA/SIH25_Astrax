@@ -232,7 +232,15 @@ router.get('/instructors', async (req, res) => {
 router.get('/credit-limits', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM credit_limits ORDER BY semester_number');
-    res.json(result.rows);
+    const existing = result.rows.reduce((acc, row) => {
+      acc[row.semester_number] = row;
+      return acc;
+    }, {});
+    const merged = Array.from({ length: 8 }, (_, i) => {
+      const sem = i + 1;
+      return existing[sem] || { id: null, semester_number: sem, max_credits: null };
+    });
+    res.json(merged);
   } catch (error) {
     console.error('Error fetching credit limits:', error);
     res.status(500).json({ error: 'Failed to fetch credit limits' });
@@ -244,12 +252,11 @@ router.put('/credit-limits/:semester_number', async (req, res) => {
   const { max_credits } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE credit_limits SET max_credits = $1 WHERE semester_number = $2 RETURNING *',
-      [max_credits, semester_number]
+      `INSERT INTO credit_limits (semester_number, max_credits) VALUES ($1, $2)
+       ON CONFLICT (semester_number) DO UPDATE SET max_credits = EXCLUDED.max_credits
+       RETURNING *`,
+      [semester_number, max_credits]
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Credit limit not found' });
-    }
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating credit limit:', error);

@@ -25,7 +25,16 @@ const CreditLimitManagement = () => {
     try {
       const response = await fetch('http://localhost:4000/api/admin/credit-limits');
       const data = await response.json();
-      setCreditLimits(data);
+      const normalized: CreditLimit[] = Array.from({ length: 8 }, (_, i) => {
+        const sem = i + 1;
+        const found = data.find((d: any) => d.semester_number === sem) || {};
+        return {
+          id: found.id ?? sem,
+          semester_number: sem,
+          max_credits: found.max_credits ?? 0
+        } as CreditLimit;
+      });
+      setCreditLimits(normalized);
     } catch (error) {
       console.error('Error fetching credit limits:', error);
     }
@@ -85,25 +94,21 @@ const CreditLimitManagement = () => {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {creditLimits.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No credit limits found</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {creditLimits.map((creditLimit) => (
-                <div key={creditLimit.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <h3 className="font-semibold">Semester {creditLimit.semester_number}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Max Credits: {creditLimit.max_credits}
-                    </p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => handleEdit(creditLimit)}>
-                    <Edit className="w-4 h-4" />
-                  </Button>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {creditLimits.map((creditLimit) => (
+              <div key={creditLimit.semester_number} className="flex items-center justify-between p-4 border rounded-lg">
+                <div>
+                  <h3 className="font-semibold">Semester {creditLimit.semester_number}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Max Credits: {creditLimit.max_credits}
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
+                <Button variant="outline" size="sm" onClick={() => handleEdit(creditLimit)}>
+                  <Edit className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
