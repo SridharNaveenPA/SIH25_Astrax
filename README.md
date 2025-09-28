@@ -363,8 +363,26 @@ PORT=4000
 
 ## � License & Credits
 
-### License
-This project is licensed under the **MIT License** - see LICENSE file for details.
+### 🏆 Smart India Hackathon 2025
+
+This project is developed for the **Smart India Hackathon (SIH) 2025** program - a nationwide initiative to harness the creativity and technical expertise of students to solve real-world problems.
+
+**Problem Statement ID**: 25091  
+**Problem Statement Title**: AI-Based Timetable Generation System aligned with NEP 2020 for Multidisciplinary Education Structures  
+**Project Category**: Software  
+**Team**: Astrax  
+**Institution**: [Your Institution Name]
+
+### 📜 Usage & Distribution
+
+This project is created as part of an educational hackathon and is intended for:
+- Academic research and learning purposes
+- Non-commercial use and modification
+- Demonstration of technical capabilities
+- Open source contribution to the developer community
+- Implementation of NEP 2020 guidelines for flexible, multidisciplinary education
+
+**Note**: This is an open-source educational project. Contributors and users are encouraged to respect intellectual property and give appropriate credit when using or modifying this codebase.
 
 ### Development Team - Astrax
 - Advanced timetable management system
