@@ -1,0 +1,2 @@
+# Python dependencies for timetable generation
+# No external dependencies required for simplified version

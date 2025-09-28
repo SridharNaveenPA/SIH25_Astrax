@@ -1,5 +1,6 @@
 const express = require('express');
 const pool = require('./db');
+const TimetableGenerator = require('./timetable_generator');
 const router = express.Router();
 
 // Rooms CRUD operations
@@ -366,6 +367,309 @@ router.delete('/timetables/:id', async (req, res) => {
   } catch (error) {
     console.error('Error deleting timetable:', error);
     res.status(500).json({ error: 'Failed to delete timetable' });
+  }
+});
+
+// Test database connectivity and data
+router.get('/test-db', async (req, res) => {
+  try {
+    const usersResult = await pool.query('SELECT COUNT(*) FROM users');
+    const subjectsResult = await pool.query('SELECT COUNT(*) FROM subjects');
+    const roomsResult = await pool.query('SELECT COUNT(*) FROM rooms');
+    const facultyResult = await pool.query('SELECT COUNT(*) FROM faculty');
+    const timetablesResult = await pool.query('SELECT COUNT(*) FROM timetables');
+    const slotsResult = await pool.query('SELECT COUNT(*) FROM timetable_slots');
+    
+    res.json({
+      success: true,
+      counts: {
+        users: parseInt(usersResult.rows[0].count),
+        subjects: parseInt(subjectsResult.rows[0].count),
+        rooms: parseInt(roomsResult.rows[0].count),
+        faculty: parseInt(facultyResult.rows[0].count),
+        timetables: parseInt(timetablesResult.rows[0].count),
+        timetable_slots: parseInt(slotsResult.rows[0].count)
+      }
+    });
+  } catch (error) {
+    console.error('Database test error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Database connection failed',
+      message: error.message 
+    });
+  }
+});
+
+// Generate master timetable
+router.post('/generate-timetable', async (req, res) => {
+  try {
+    console.log('Starting timetable generation...');
+    
+    // Fetch subjects with instructor information
+    const subjectsResult = await pool.query(`
+      SELECT s.*, u.name as instructor_name
+      FROM subjects s
+      LEFT JOIN users u ON s.instructor_id = u.id
+      ORDER BY s.course_code
+    `);
+    
+    console.log(`Found ${subjectsResult.rows.length} subjects`);
+    
+    if (subjectsResult.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No subjects found. Please add subjects first or run database initialization.' 
+      });
+    }
+    
+    // Fetch rooms
+    const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_id');
+    console.log(`Found ${roomsResult.rows.length} rooms`);
+    
+    if (roomsResult.rows.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'No rooms found. Please add rooms first or run database initialization.' 
+      });
+    }
+    
+    // Fetch faculty with availability
+    const facultyResult = await pool.query(`
+      SELECT u.id, u.name, f.department, f.availability
+      FROM users u
+      JOIN faculty f ON u.id = f.user_id
+      WHERE u.role = 'staff'
+    `);
+    console.log(`Found ${facultyResult.rows.length} faculty members`);
+    
+    // Prepare data structures for timetable generation
+    const subjects = {};
+    subjectsResult.rows.forEach(subject => {
+      subjects[subject.course_name] = {
+        id: subject.id,
+        course_code: subject.course_code,
+        course_name: subject.course_name,
+        semester: subject.semester,
+        credits: subject.credits,
+        course_type: subject.course_type,
+        min_lab_hours: subject.min_lab_hours,
+        min_theory_hours: subject.min_theory_hours,
+        max_capacity: subject.max_capacity,
+        instructor_id: subject.instructor_id,
+        instructor_name: subject.instructor_name
+      };
+    });
+    
+    const rooms = {};
+    roomsResult.rows.forEach(room => {
+      rooms[room.room_id] = {
+        id: room.id,
+        building: room.building,
+        capacity: room.capacity,
+        room_type: room.room_type
+      };
+    });
+    
+    const faculty = {};
+    facultyResult.rows.forEach(f => {
+      faculty[f.id] = {
+        name: f.name,
+        department: f.department,
+        availability: f.availability || {},
+        unavailable_slots: [] // Can be populated from availability data
+      };
+    });
+    
+    console.log('Calling Python timetable generator...');
+    const generator = new TimetableGenerator();
+    const result = await generator.generateMasterTimetable(subjects, rooms, faculty, {});
+    console.log('Python generator result:', result.success ? 'Success' : 'Failed', result.message || '');
+    
+    if (!result.success) {
+      console.error('Timetable generation failed:', result);
+      return res.status(400).json(result);
+    }
+    
+    if (result.success) {
+      // Clear any existing published timetables first
+      await pool.query("UPDATE timetables SET status = 'archived' WHERE status = 'published'");
+      
+      // Store the generated timetable in database
+      const timetableResult = await pool.query(
+        'INSERT INTO timetables (name, semester, academic_year, created_by, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        ['Master Timetable', 'Current', '2025-26', req.body.created_by || 1, 'published']
+      );
+      
+      const timetableId = timetableResult.rows[0].id;
+      
+      // Store individual time slots
+      if (result.timetable && result.schedule_data) {
+        for (const slot of result.schedule_data) {
+          const subject = subjects[slot.subject];
+          const room = Object.keys(rooms).find(r => r === slot.room);
+          const roomData = rooms[room];
+          
+          if (subject && roomData) {
+            await pool.query(
+              `INSERT INTO timetable_slots 
+               (timetable_id, subject_id, room_id, instructor_id, day_of_week, time_slot, start_time, end_time, slot_type)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+              [
+                timetableId,
+                subject.id,
+                roomData.id,
+                subject.instructor_id,
+                slot.day + 1, // day_of_week starts from 1
+                slot.time_slot, // Add the time_slot value
+                `${9 + slot.period}:00`, // Assuming 9 AM start
+                `${10 + slot.period}:00`,
+                subject.course_type === 'Lab' ? 'lab' : 'theory'
+              ]
+            );
+          }
+        }
+      }
+      
+      res.json({
+        success: true,
+        timetable: result.timetable,
+        timetableId: timetableId,
+        message: 'Master timetable generated and saved successfully'
+      });
+    } else {
+      res.status(400).json(result);
+    }
+    
+  } catch (error) {
+    console.error('Error generating timetable:', error);
+    res.status(500).json({ error: 'Failed to generate timetable' });
+  }
+});
+
+// Get master timetable
+router.get('/master-timetable', async (req, res) => {
+  try {
+    // First try to get from database
+    const result = await pool.query(`
+      SELECT 
+        ts.day_of_week,
+        ts.start_time,
+        ts.end_time,
+        ts.slot_type,
+        s.course_code,
+        s.course_name,
+        r.room_id,
+        r.building,
+        u.name as instructor_name
+      FROM timetable_slots ts
+      JOIN subjects s ON ts.subject_id = s.id
+      JOIN rooms r ON ts.room_id = r.id
+      LEFT JOIN users u ON ts.instructor_id = u.id
+      WHERE ts.timetable_id IN (
+        SELECT id FROM timetables WHERE status = 'published' ORDER BY created_at DESC LIMIT 1
+      )
+      ORDER BY ts.day_of_week, ts.start_time
+    `);
+    
+    if (result.rows.length > 0) {
+      // Convert to timetable grid format
+      const timetable = Array.from({ length: 5 }, () => Array.from({ length: 8 }, () => []));
+      
+      result.rows.forEach(slot => {
+        const day = slot.day_of_week - 1; // Convert to 0-based
+        const hour = parseInt(slot.start_time.split(':')[0]);
+        const period = hour - 9; // Assuming 9 AM start
+        
+        if (day >= 0 && day < 5 && period >= 0 && period < 8) {
+          const entry = `${slot.course_code} (${slot.instructor_name}, ${slot.room_id})`;
+          timetable[day][period].push(entry);
+        }
+      });
+      
+      res.json({
+        success: true,
+        timetable: timetable,
+        slots: result.rows
+      });
+    } else {
+      // No saved timetable found, generate a fresh one
+      console.log('No saved timetable found, generating fresh timetable...');
+      
+      // Fetch data and generate timetable
+      const subjectsResult = await pool.query(`
+        SELECT s.*, u.name as instructor_name
+        FROM subjects s
+        LEFT JOIN users u ON s.instructor_id = u.id
+        ORDER BY s.course_code
+      `);
+      
+      const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_id');
+      const facultyResult = await pool.query(`
+        SELECT u.id, u.name, f.department, f.availability
+        FROM users u
+        JOIN faculty f ON u.id = f.user_id
+        WHERE u.role = 'staff'
+      `);
+
+      // Prepare data structures
+      const subjects = {};
+      subjectsResult.rows.forEach(subject => {
+        subjects[subject.course_name] = {
+          id: subject.id,
+          course_code: subject.course_code,
+          course_name: subject.course_name,
+          semester: subject.semester,
+          credits: subject.credits,
+          course_type: subject.course_type,
+          min_lab_hours: subject.min_lab_hours,
+          min_theory_hours: subject.min_theory_hours,
+          max_capacity: subject.max_capacity,
+          instructor_id: subject.instructor_id,
+          instructor_name: subject.instructor_name
+        };
+      });
+      
+      const rooms = {};
+      roomsResult.rows.forEach(room => {
+        rooms[room.room_id] = {
+          id: room.id,
+          building: room.building,
+          capacity: room.capacity,
+          room_type: room.room_type
+        };
+      });
+      
+      const faculty = {};
+      facultyResult.rows.forEach(f => {
+        faculty[f.id] = {
+          name: f.name,
+          department: f.department,
+          availability: f.availability || {},
+          unavailable_slots: []
+        };
+      });
+
+      const generator = new TimetableGenerator();
+      const generatedResult = await generator.generateMasterTimetable(subjects, rooms, faculty, {});
+      
+      if (generatedResult.success) {
+        res.json({
+          success: true,
+          timetable: generatedResult.timetable,
+          message: 'Fresh timetable generated'
+        });
+      } else {
+        res.status(500).json(generatedResult);
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching master timetable:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to fetch master timetable',
+      message: error.message 
+    });
   }
 });
 

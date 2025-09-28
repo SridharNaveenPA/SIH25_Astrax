@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Calendar, Clock, MapPin, Download, Users, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import StaffTimetable from "@/components/StaffTimetable";
 
 interface DashboardStats {
   subjectsAssigned: number;
@@ -187,49 +188,7 @@ const StaffDashboard = () => {
           </TabsList>
 
           <TabsContent value="schedule">
-            <Card>
-              <CardHeader>
-                <CardTitle>Weekly Schedule</CardTitle>
-                <CardDescription>Your teaching schedule for this week</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr>
-                        <th className="border p-2 bg-muted">Time</th>
-                        {weekDays.map(day => (
-                          <th key={day} className="border p-2 bg-muted min-w-32">{day}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {timeSlots.map(slot => (
-                        <tr key={slot}>
-                          <td className="border p-2 font-medium">{slot}</td>
-                          {weekDays.map((day, dayIndex) => {
-                            const scheduleSlot = getScheduleForSlot(dayIndex, slot);
-                            return (
-                              <td key={`${day}-${slot}`} className="border p-2 h-16">
-                                {scheduleSlot ? (
-                                  <div className="text-xs bg-primary/10 p-1 rounded">
-                                    <div className="font-medium">{scheduleSlot.course_code}</div>
-                                    <div>{scheduleSlot.room_id}</div>
-                                  </div>
-                                ) : null}
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-center text-muted-foreground mt-4">
-                  {loading ? 'Loading schedule...' : schedule.length === 0 ? 'Complete schedule will appear here once timetable is generated' : ''}
-                </p>
-              </CardContent>
-            </Card>
+            <StaffTimetable />
           </TabsContent>
 
           <TabsContent value="subjects">

@@ -114,12 +114,37 @@ router.get('/schedule', verifyStaff, async (req, res) => {
       JOIN rooms r ON ts.room_id = r.id
       WHERE ts.instructor_id = $1
         AND ts.timetable_id IN (
-          SELECT id FROM timetables WHERE status = 'published'
+          SELECT id FROM timetables WHERE status = 'published' ORDER BY created_at DESC LIMIT 1
         )
       ORDER BY ts.day_of_week, ts.start_time
     `, [staffId]);
     
-    res.json(result.rows);
+    // Convert to timetable grid format
+    const timetable = Array.from({ length: 5 }, () => Array.from({ length: 8 }, () => []));
+    
+    result.rows.forEach(slot => {
+      const day = slot.day_of_week - 1; // Convert to 0-based
+      const hour = parseInt(slot.start_time.split(':')[0]);
+      const period = hour - 9; // Assuming 9 AM start
+      
+      if (day >= 0 && day < 5 && period >= 0 && period < 8) {
+        const entry = {
+          course_code: slot.course_code,
+          course_name: slot.course_name,
+          room: slot.room_id,
+          building: slot.building,
+          slot_type: slot.slot_type,
+          time: `${slot.start_time}-${slot.end_time}`
+        };
+        timetable[day][period].push(entry);
+      }
+    });
+    
+    res.json({
+      success: true,
+      timetable: timetable,
+      slots: result.rows
+    });
   } catch (error) {
     console.error('Error fetching staff schedule:', error);
     res.status(500).json({ error: 'Failed to fetch schedule' });

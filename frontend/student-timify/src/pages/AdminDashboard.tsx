@@ -8,6 +8,7 @@ import RoomManagement from "@/components/RoomManagement";
 import SubjectManagement from "@/components/SubjectManagement";
 import FacultyManagement from "@/components/FacultyManagement";
 import CreditLimitManagement from "@/components/CreditLimitManagement";
+import MasterTimetable from "@/components/MasterTimetable";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -70,7 +71,6 @@ const AdminDashboard = () => {
               <h1 className="text-2xl font-bold">Admin Dashboard</h1>
             </div>
             <div className="flex gap-2">
-              <Button>Generate Master Timetable</Button>
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
@@ -108,7 +108,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="faculty">Faculty</TabsTrigger>
             <TabsTrigger value="subjects">Subjects</TabsTrigger>
             <TabsTrigger value="credit-limits">Credit Limits</TabsTrigger>
-            <TabsTrigger value="timetables">Timetables</TabsTrigger>
+            <TabsTrigger value="master-timetable">Master Timetable</TabsTrigger>
           </TabsList>
 
           <TabsContent value="rooms">
@@ -127,22 +127,8 @@ const AdminDashboard = () => {
             <CreditLimitManagement />
           </TabsContent>
 
-          <TabsContent value="timetables">
-            <Card>
-              <CardHeader>
-                <CardTitle>Timetable Management</CardTitle>
-                <CardDescription>View and manage generated timetables</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center mb-4">
-                  <p className="text-sm text-muted-foreground">3 timetables generated</p>
-                  <Button variant="outline">Download Master Timetable</Button>
-                </div>
-                <div className="border rounded-md p-4">
-                  <p className="text-center text-muted-foreground">Timetable preview will be displayed here</p>
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="master-timetable">
+            <MasterTimetable />
           </TabsContent>
         </Tabs>
       </main>

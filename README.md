@@ -1,306 +1,399 @@
-# AI Timetable Management System
+# 🎓 SIH25 Astrax - Advanced Timetable Management System
 
-A comprehensive timetable management system with role-based authentication for Admin, Staff, and Students. Built with React (Frontend) and Node.js/Express (Backend) with PostgreSQL database.
+A comprehensive, intelligent timetable management system with AI-powered scheduling, role-based authentication, and complete academic management features. Built with React, Node.js, Express, and PostgreSQL.
 
-## 🚀 Features
+## 🌟 Key Features
 
-- **Role-based Authentication**: Separate login systems for Admin, Staff, and Students
-- **Admin Dashboard**: Complete management of rooms, subjects, and faculty
-- **Room Management**: Add, edit, delete rooms with capacity and type information
-- **Subject Management**: Manage courses with prerequisites and instructor assignments
-- **Faculty Management**: Add faculty members with availability and department information
-- **Protected Routes**: Secure access control based on user roles
-- **Responsive Design**: Modern UI with Tailwind CSS
+### 🔐 **Role-Based Authentication System**
+- **Admin Panel**: Complete system administration and management
+- **Staff Dashboard**: Personal teaching schedules and course management  
+- **Student Portal**: Personalized timetables and subject enrollment
 
-## 📋 Prerequisites
+### 🤖 **Smart Timetable Generation**
+- **AI-Powered Scheduling**: Intelligent constraint-based timetable generation
+- **Conflict Resolution**: Automatic detection and prevention of scheduling conflicts
+- **Resource Optimization**: Efficient room and instructor allocation
+- **Flexible Scheduling**: Support for theory, lab, and tutorial sessions
 
-Before setting up the project, ensure you have the following software installed:
+### 📊 **Comprehensive Management**
+- **Room Management**: Capacity-aware room allocation with building mapping
+- **Faculty Management**: Instructor availability and subject assignments
+- **Subject Management**: Course codes, credits, prerequisites, and instructor assignments
+- **Student Enrollment**: Self-service subject enrollment with capacity limits
+- **Credit Management**: Configurable credit limits and academic constraints
 
-### Required Software:
-1. **Node.js** (v16 or higher) - [Download here](https://nodejs.org/)
-2. **PostgreSQL** (v12 or higher) - [Download here](https://www.postgresql.org/download/)
-3. **pgAdmin 4** - [Download here](https://www.pgadmin.org/download/)
-4. **Git** - [Download here](https://git-scm.com/downloads)
+### 📈 **Advanced Features**
+- **Multiple Timetable Views**: Master, Student, and Staff-specific timetables
+- **CSV Export**: Professional timetable exports for all user types
+- **Real-time Updates**: Live dashboard statistics and data refresh
+- **Responsive Design**: Modern UI with Tailwind CSS and shadcn/ui components
 
-### Optional (but recommended):
-- **VS Code** - [Download here](https://code.visualstudio.com/)
-- **Postman** (for API testing) - [Download here](https://www.postman.com/downloads/)
+---
+
+## � Quick Start Guide
+
+### �📋 Prerequisites
+
+Ensure you have the following installed:
+
+- **Node.js** (v16+) - [Download](https://nodejs.org/)
+- **PostgreSQL** (v12+) - [Download](https://www.postgresql.org/download/)
+- **Git** - [Download](https://git-scm.com/downloads)
+
+---
 
 ## 🗄️ Database Setup
 
 ### Step 1: Create Database
-1. Open **pgAdmin 4**
-2. Connect to your PostgreSQL server
-3. Right-click on "Databases" → "Create" → "Database"
-4. Name: `timetable_db`
-5. Click "Save"
+1. Open **pgAdmin 4** or **PostgreSQL command line**
+2. Create a new database: `timetable_db`
 
-### Step 2: Execute SQL Commands
-Run the following SQL commands in pgAdmin 4 Query Tool:
+### Step 2: Initialize Database
+Execute the complete database setup script located at `database_update.sql`:
 
-```sql
--- Connect to timetable_db database first, then run these commands:
+```bash
+# Using psql command line:
+psql -U postgres -d timetable_db -f database_update.sql
 
--- Update users table to add name and email columns
-ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(100);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100);
-
--- Create rooms table
-CREATE TABLE rooms (
-  id SERIAL PRIMARY KEY,
-  room_id VARCHAR(20) UNIQUE NOT NULL,
-  building VARCHAR(50) NOT NULL,
-  capacity INTEGER NOT NULL,
-  room_type VARCHAR(30) NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create subjects table
-CREATE TABLE subjects (
-  id SERIAL PRIMARY KEY,
-  course_code VARCHAR(20) UNIQUE NOT NULL,
-  course_name VARCHAR(100) NOT NULL,
-  semester VARCHAR(20) NOT NULL,
-  credits INTEGER NOT NULL,
-  prerequisites TEXT,
-  instructor_id INTEGER REFERENCES users(id),
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create faculty table
-CREATE TABLE faculty (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id) UNIQUE NOT NULL,
-  name VARCHAR(100) NOT NULL,
-  email VARCHAR(100),
-  phone VARCHAR(20),
-  department VARCHAR(50),
-  max_hours_per_week INTEGER DEFAULT 40,
-  availability JSONB,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create faculty subjects junction table
-CREATE TABLE faculty_subjects (
-  id SERIAL PRIMARY KEY,
-  faculty_id INTEGER REFERENCES faculty(id) ON DELETE CASCADE,
-  subject_id INTEGER REFERENCES subjects(id) ON DELETE CASCADE,
-  UNIQUE(faculty_id, subject_id)
-);
-
--- Insert sample admin user (if not exists)
-INSERT INTO users (username, password_hash, role, name, email) 
-VALUES ('admin', 'admin', 'admin', 'System Administrator', 'admin@university.edu')
-ON CONFLICT (username) DO NOTHING;
-
--- Insert sample student user
-INSERT INTO users (username, password_hash, role, name, email) 
-VALUES ('student001', 'studentpass', 'student', 'John Student', 'john.student@university.edu')
-ON CONFLICT (username) DO NOTHING;
-
--- Insert sample staff user
-INSERT INTO users (username, password_hash, role, name, email) 
-VALUES ('staff001', 'staffpass', 'staff', 'Dr. Jane Smith', 'jane.smith@university.edu')
-ON CONFLICT (username) DO NOTHING;
+# Or copy-paste the contents of database_update.sql into pgAdmin Query Tool
 ```
 
-## 🛠️ Installation & Setup
+**✅ What this script includes:**
+- Complete database schema (users, rooms, subjects, faculty, timetables, etc.)
+- Sample data (5 students, 10 faculty members, 7 rooms, 10 subjects)
+- Student enrollments and relationships
+- Indexes for performance optimization
 
-### Step 1: Clone the Repository
+---
+
+## ⚡ Installation & Setup
+
+### 1️⃣ Clone Repository
 ```bash
-git clone <your-github-repo-url>
-cd SIH2025
+git clone https://github.com/SridharNaveenPA/SIH25_Astrax.git
+cd SIH25_Astrax
 ```
 
-### Step 2: Backend Setup
+### 2️⃣ Backend Setup
 ```bash
-# Navigate to backend directory
 cd backend
 
 # Install dependencies
 npm install
 
 # Create environment file
-# Create a .env file in the backend directory with:
-echo "DATABASE_URL=postgres://username:password@localhost:5432/timetable_db" > .env
-echo "JWT_SECRET=your_super_secret_jwt_key_here" >> .env
+cat > .env << EOL
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/timetable_db
+JWT_SECRET=your_super_secret_jwt_key_here_make_it_long_and_complex
+PORT=4000
+EOL
 
-# Start the backend server
+# Start backend server
 npm start
 ```
 
-**Note**: Replace `username` and `password` in DATABASE_URL with your PostgreSQL credentials.
+**🔧 Replace `your_password` with your PostgreSQL password**
 
-### Step 3: Frontend Setup
+### 3️⃣ Frontend Setup
 ```bash
-# Open a new terminal and navigate to frontend directory
+# Open new terminal
 cd frontend/student-timify
 
 # Install dependencies
 npm install
 
-# Start the frontend development server
+# Start development server
 npm run dev
 ```
 
-## 🌐 Access the Application
+---
 
-Once both servers are running:
+## 🌐 Access URLs
 
-- **Frontend**: http://localhost:5173 (or the port shown in terminal)
-- **Backend API**: http://localhost:4000
-
-## 👥 Default Login Credentials
-
-### Admin Login
-- **URL**: http://localhost:5173/admin
-- **Username**: `admin`
-- **Password**: `admin`
-
-### Student Login
-- **URL**: http://localhost:5173/student
-- **Username**: `student001`
-- **Password**: `studentpass`
-
-### Staff Login
-- **URL**: http://localhost:5173/staff
-- **Username**: `staff001`
-- **Password**: `staffpass`
-
-## 📁 Project Structure
-
-```
-SIH2025/
-├── backend/
-│   ├── src/
-│   │   ├── auth_db.js          # Authentication routes
-│   │   ├── admin_routes.js     # Admin management routes
-│   │   ├── server.js           # Main server file
-│   │   ├── db.js              # Database connection
-│   │   └── db_schema.sql      # Database schema
-│   ├── package.json
-│   └── .env                   # Environment variables
-├── frontend/
-│   └── student-timify/
-│       ├── src/
-│       │   ├── components/
-│       │   │   ├── ui/         # UI components
-│       │   │   ├── ProtectedRoute.tsx
-│       │   │   ├── RoomManagement.tsx
-│       │   │   ├── SubjectManagement.tsx
-│       │   │   └── FacultyManagement.tsx
-│       │   ├── pages/
-│       │   │   ├── AdminDashboard.tsx
-│       │   │   ├── AdminLogin.tsx
-│       │   │   ├── StudentLogin.tsx
-│       │   │   ├── StaffLogin.tsx
-│       │   │   ├── StudentDashboard.tsx
-│       │   │   ├── StaffDashboard.tsx
-│       │   │   └── RoleSelection.tsx
-│       │   └── App.tsx
-│       └── package.json
-└── README.md
-```
-
-## 🔧 Environment Variables
-
-Create a `.env` file in the `backend` directory:
-
-```env
-DATABASE_URL=postgres://username:password@localhost:5432/timetable_db
-JWT_SECRET=your_super_secret_jwt_key_here
-PORT=4000
-```
-
-## 🚀 Available Scripts
-
-### Backend Scripts
-```bash
-npm start          # Start production server
-npm run dev        # Start development server with nodemon
-```
-
-### Frontend Scripts
-```bash
-npm run dev        # Start development server
-npm run build      # Build for production
-npm run preview    # Preview production build
-```
-
-## 🔍 API Endpoints
-
-### Authentication
-- `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Get current user info
-
-### Admin Management
-- `GET /api/admin/rooms` - Get all rooms
-- `POST /api/admin/rooms` - Create new room
-- `PUT /api/admin/rooms/:id` - Update room
-- `DELETE /api/admin/rooms/:id` - Delete room
-
-- `GET /api/admin/subjects` - Get all subjects
-- `POST /api/admin/subjects` - Create new subject
-- `PUT /api/admin/subjects/:id` - Update subject
-- `DELETE /api/admin/subjects/:id` - Delete subject
-
-- `GET /api/admin/faculty` - Get all faculty
-- `POST /api/admin/faculty` - Create new faculty
-- `PUT /api/admin/faculty/:id` - Update faculty
-- `DELETE /api/admin/faculty/:id` - Delete faculty
-
-- `GET /api/admin/instructors` - Get available instructors
-
-## 🐛 Troubleshooting
-
-### Common Issues:
-
-1. **Database Connection Error**:
-   - Check if PostgreSQL is running
-   - Verify DATABASE_URL in .env file
-   - Ensure database `timetable_db` exists
-
-2. **Port Already in Use**:
-   - Change PORT in .env file
-   - Kill existing processes: `npx kill-port 4000`
-
-3. **Module Not Found Errors**:
-   - Run `npm install` in both backend and frontend directories
-   - Clear node_modules and reinstall if needed
-
-4. **White Screen in Frontend**:
-   - Check browser console for errors
-   - Ensure backend server is running
-   - Check network requests in browser dev tools
-
-### Getting Help:
-- Check browser console for error messages
-- Check terminal output for server errors
-- Verify all prerequisites are installed correctly
-
-## 📝 Development Notes
-
-- The system uses JWT tokens for authentication
-- Passwords are stored as plain text (for demo purposes)
-- All CRUD operations are implemented for admin management
-- The frontend uses React Router for navigation
-- Tailwind CSS is used for styling
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License.
+- **🖥️ Main Application**: http://localhost:8080 (or port shown in terminal)
+- **🔗 Backend API**: http://localhost:4000
+- **� Responsive Design**: Works on desktop, tablet, and mobile
 
 ---
 
-**Happy Coding! 🎉**
+## 👥 Login Credentials
 
-For any issues or questions, please check the troubleshooting section or create an issue in the repository.
-"# SIH25_Astrax" 
+### 🛡️ **Admin Access**
+- **Username**: `admin`
+- **Password**: `admin123`
+- **Features**: Complete system management, timetable generation, user management
+
+### 👨‍🏫 **Staff/Faculty Access**
+- **Username**: `staff_john`
+- **Password**: `staff123`
+- **Features**: Personal teaching schedule, subject management
+
+### 🎓 **Student Access**
+- **Username**: `student_alice`
+- **Password**: `student123`
+- **Features**: Personal timetable, subject enrollment, schedule downloads
+
+**📝 Additional Test Accounts:**
+- **Students**: `student_bob`, `student_charlie`, `student_diana`, `student_eve` (all with password `student123`)
+- **Staff**: `staff_emily`, `staff_david`, `staff_bob` (all with password `staff123`)
+
+---
+
+## 🎯 User Guide
+
+### 🛡️ **Admin Dashboard**
+1. **Login** with admin credentials
+2. **Navigate through tabs**:
+   - **Rooms**: Add/edit/delete rooms with capacity and building info
+   - **Faculty**: Manage instructor profiles and assignments
+   - **Subjects**: Create courses with prerequisites and instructor assignments
+   - **Credit Limits**: Set academic credit constraints
+   - **Master Timetable**: Generate and manage master schedules
+
+3. **Generate Timetable**:
+   - Click "Generate Timetable" in Master Timetable tab
+   - System automatically creates optimized schedule
+   - Download CSV export for distribution
+
+### 👨‍🏫 **Staff Dashboard**
+1. **Login** with staff credentials
+2. **View Teaching Schedule**: See your assigned classes and time slots
+3. **Download Schedule**: Export personal teaching timetable as CSV
+4. **Dashboard Stats**: View teaching load and schedule overview
+
+### 🎓 **Student Dashboard**  
+1. **Login** with student credentials
+2. **Subject Enrollment**: Browse and enroll in available subjects
+3. **My Timetable**: View personalized class schedule
+4. **Download Timetable**: Export personal schedule as CSV
+5. **My Subjects**: Manage enrolled courses
+
+---
+
+## 📁 Project Architecture
+
+```
+SIH25_Astrax/
+├── 📁 backend/
+│   ├── 📁 src/
+│   │   ├── 🔐 auth.js              # JWT authentication
+│   │   ├── 🗄️ auth_db.js           # Authentication routes  
+│   │   ├── 🛡️ admin_routes.js      # Admin management APIs
+│   │   ├── 👨‍🏫 staff_routes.js      # Staff timetable APIs
+│   │   ├── 🎓 student_routes.js    # Student enrollment APIs
+│   │   ├── 🧠 timetable_generator.js # AI scheduling engine
+│   │   ├── 🗄️ db.js               # Database connection
+│   │   └── 🚀 server.js           # Express server
+│   └── 📦 package.json
+├── 📁 frontend/student-timify/
+│   ├── 📁 src/
+│   │   ├── 📁 components/
+│   │   │   ├── 🛡️ ProtectedRoute.tsx
+│   │   │   ├── 🏢 RoomManagement.tsx
+│   │   │   ├── 📚 SubjectManagement.tsx
+│   │   │   ├── 👨‍🏫 FacultyManagement.tsx
+│   │   │   ├── 🗓️ MasterTimetable.tsx
+│   │   │   ├── 🎓 StudentTimetable.tsx
+│   │   │   ├── 👨‍🏫 StaffTimetable.tsx
+│   │   │   └── 📱 ui/ (shadcn components)
+│   │   ├── 📁 pages/
+│   │   │   ├── 🛡️ AdminDashboard.tsx
+│   │   │   ├── 👨‍🏫 StaffDashboard.tsx
+│   │   │   ├── 🎓 StudentDashboard.tsx
+│   │   │   └── 🔐 Login pages
+│   │   └── ⚛️ App.tsx
+│   └── 📦 package.json
+├── �️ database_update.sql         # Complete DB setup
+└── 📖 README.md
+```
+
+---
+
+## � API Reference
+
+### 🔐 Authentication
+- `POST /api/auth/login` - User authentication
+- `GET /api/auth/me` - Current user profile
+
+### �️ Admin APIs
+- `GET /api/admin/dashboard-stats` - Dashboard statistics
+- `GET|POST|PUT|DELETE /api/admin/rooms` - Room management
+- `GET|POST|PUT|DELETE /api/admin/subjects` - Subject management  
+- `GET|POST|PUT|DELETE /api/admin/faculty` - Faculty management
+- `POST /api/admin/generate-master-timetable` - Generate schedules
+- `GET /api/admin/master-timetable` - Retrieve master timetable
+
+### 👨‍🏫 Staff APIs
+- `GET /api/staff/dashboard-stats` - Teaching statistics
+- `GET /api/staff/timetable` - Personal teaching schedule
+
+### 🎓 Student APIs
+- `GET /api/student/dashboard-stats` - Enrollment statistics
+- `GET /api/student/available-subjects` - Available courses
+- `POST /api/student/enroll/:id` - Enroll in subject
+- `DELETE /api/student/drop/:id` - Drop subject
+- `GET /api/student/my-subjects` - Enrolled subjects
+- `GET /api/student/timetable` - Personal timetable
+
+---
+
+## 🧠 AI Timetable Generation
+
+### Algorithm Features:
+- **Constraint Programming**: Ensures no conflicts in scheduling
+- **Resource Optimization**: Efficient allocation of rooms and instructors
+- **Intelligent Distribution**: Balanced workload across days and time slots
+- **Conflict Detection**: Automatic prevention of double-booking
+- **Lunch Break Integration**: Built-in break periods
+
+### Constraints Handled:
+- ✅ Instructor availability conflicts
+- ✅ Room capacity and type matching
+- ✅ Student enrollment limits
+- ✅ Time slot conflicts
+- ✅ Academic credit limits
+
+---
+
+## � Troubleshooting
+
+### 💥 Common Issues & Solutions
+
+#### **Database Connection Failed**
+```bash
+# Check PostgreSQL service
+sudo service postgresql start  # Linux/Mac
+# or use Services app on Windows
+
+# Verify database exists
+psql -U postgres -l | grep timetable_db
+```
+
+#### **Port Already in Use**
+```bash
+# Kill processes on ports
+npx kill-port 4000 8080
+# Or change ports in .env and vite.config.ts
+```
+
+#### **Frontend White Screen**
+```bash
+# Clear cache and reinstall
+rm -rf node_modules package-lock.json
+npm install
+npm run dev
+```
+
+#### **CSV Export Issues**
+- **Hard refresh**: `Ctrl + Shift + R`  
+- **Clear browser cache**
+- **Try incognito mode**
+
+---
+
+## 🚀 Production Deployment
+
+### Backend (Node.js)
+```bash
+# Build and start
+npm install --production
+npm start
+
+# Using PM2 for process management
+npm install -g pm2
+pm2 start src/server.js --name "timetable-backend"
+```
+
+### Frontend (React)
+```bash
+# Build for production
+npm run build
+
+# Serve with nginx or serve
+npm install -g serve
+serve -s dist -l 3000
+```
+
+### Environment Variables (Production)
+```env
+DATABASE_URL=postgresql://user:pass@host:5432/timetable_db
+JWT_SECRET=your_super_secure_production_jwt_secret
+NODE_ENV=production
+PORT=4000
+```
+
+---
+
+## � Database Schema Overview
+
+### Core Tables:
+- **`users`**: Authentication and user profiles
+- **`rooms`**: Physical spaces with capacity and type
+- **`subjects`**: Academic courses with credits and prerequisites  
+- **`faculty`**: Instructor profiles and availability
+- **`student_enrollments`**: Student-subject relationships
+- **`timetables`**: Generated schedule metadata
+- **`timetable_slots`**: Individual time slot assignments
+
+### Sample Data Included:
+- **5 Students** with varied enrollments
+- **10 Faculty Members** across departments
+- **7 Rooms** with different capacities
+- **10 Subjects** with realistic course structure
+- **Pre-configured enrollments** for immediate testing
+
+---
+
+## 🤝 Contributing
+
+### Development Setup:
+1. Fork the repository
+2. Create feature branch: `git checkout -b feature/your-feature`
+3. Make changes and test thoroughly
+4. Commit with clear messages: `git commit -m "Add feature: description"`
+5. Push and create Pull Request
+
+### Code Standards:
+- **ESLint** for JavaScript linting
+- **Prettier** for code formatting  
+- **TypeScript** for frontend type safety
+- **Comprehensive error handling**
+
+---
+
+## � License & Credits
+
+### License
+This project is licensed under the **MIT License** - see LICENSE file for details.
+
+### Development Team - Astrax
+- Advanced timetable management system
+- Smart Hackathon Innovation (SIH) 2025 project
+- Built with modern web technologies
+
+### Technologies Used:
+- **Frontend**: React, TypeScript, Tailwind CSS, shadcn/ui
+- **Backend**: Node.js, Express.js, PostgreSQL
+- **Authentication**: JWT tokens
+- **Styling**: Responsive design with dark/light themes
+
+---
+
+## 🎉 Getting Started
+
+1. **Follow the setup guide above**
+2. **Login with provided credentials**
+3. **Generate a master timetable (Admin)**
+4. **Explore all three user interfaces**
+5. **Test CSV exports and enrollments**
+
+**🚀 Ready to revolutionize academic scheduling!**
+
+---
+
+**For support, issues, or questions:**
+- 📧 Create an issue in this repository
+- 📖 Check the troubleshooting section above
+- 🔍 Review API documentation for integration
+
+**Happy Scheduling! 🎓✨** 

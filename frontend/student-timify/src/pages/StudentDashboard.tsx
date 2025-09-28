@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, BookOpen, Calendar, Download, Clock, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import StudentTimetable from "@/components/StudentTimetable";
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -239,19 +240,7 @@ const StudentDashboard = () => {
           </TabsContent>
 
           <TabsContent value="timetable">
-            <Card>
-              <CardHeader>
-                <CardTitle>My Timetable</CardTitle>
-                <CardDescription>Your personalized class schedule</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="border rounded-md p-8">
-                  <p className="text-center text-muted-foreground">
-                    Your timetable will appear here once the admin generates the master timetable
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <StudentTimetable />
           </TabsContent>
 
           <TabsContent value="enrolled">
