@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, BookOpen, Users, MapPin, Calendar, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
 import RoomManagement from "@/components/RoomManagement";
 import SubjectManagement from "@/components/SubjectManagement";
 import FacultyManagement from "@/components/FacultyManagement";
@@ -10,6 +11,38 @@ import CreditLimitManagement from "@/components/CreditLimitManagement";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const [dashboardStats, setDashboardStats] = useState({
+    totalSubjects: 0,
+    facultyMembers: 0,
+    roomsAvailable: 0,
+    timetablesGenerated: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDashboardStats();
+  }, []);
+
+  const fetchDashboardStats = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("http://localhost:4000/api/admin/dashboard-stats", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDashboardStats(data);
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -18,10 +51,10 @@ const AdminDashboard = () => {
   };
 
   const stats = [
-    { title: "Total Subjects", value: "12", icon: BookOpen },
-    { title: "Faculty Members", value: "25", icon: Users },
-    { title: "Rooms Available", value: "18", icon: MapPin },
-    { title: "Timetables Generated", value: "3", icon: Calendar }
+    { title: "Total Subjects", value: dashboardStats.totalSubjects.toString(), icon: BookOpen },
+    { title: "Faculty Members", value: dashboardStats.facultyMembers.toString(), icon: Users },
+    { title: "Rooms Available", value: dashboardStats.roomsAvailable.toString(), icon: MapPin },
+    { title: "Timetables Generated", value: dashboardStats.timetablesGenerated.toString(), icon: Calendar }
   ];
 
   return (
@@ -58,7 +91,9 @@ const AdminDashboard = () => {
                   <Icon className="w-8 h-8 text-primary mr-3" />
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                    <p className="text-2xl font-bold">{stat.value}</p>
+                    <p className="text-2xl font-bold">
+                      {loading ? "..." : stat.value}
+                    </p>
                   </div>
                 </CardContent>
               </Card>

@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const authRoutes = require('./auth_db');
 const adminRoutes = require('./admin_routes');
+const studentRoutes = require('./student_routes');
 
 const app = express();
 app.use(cors());
@@ -10,6 +11,7 @@ app.use(bodyParser.json());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/student', studentRoutes);
 
 app.get('/', (req, res) => {
   res.send('Backend API running');

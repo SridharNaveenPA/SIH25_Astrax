@@ -272,4 +272,93 @@ router.get('/courses', async (req, res) => {
   }
 });
 
+// Get admin dashboard statistics
+router.get('/dashboard-stats', async (req, res) => {
+  try {
+    // Get total subjects count
+    const subjectsResult = await pool.query('SELECT COUNT(*) as count FROM subjects');
+    
+    // Get faculty members count
+    const facultyResult = await pool.query('SELECT COUNT(*) as count FROM faculty');
+    
+    // Get rooms available count
+    const roomsResult = await pool.query('SELECT COUNT(*) as count FROM rooms');
+    
+    // Get timetables generated count
+    const timetablesResult = await pool.query('SELECT COUNT(*) as count FROM timetables');
+    
+    res.json({
+      totalSubjects: parseInt(subjectsResult.rows[0].count),
+      facultyMembers: parseInt(facultyResult.rows[0].count),
+      roomsAvailable: parseInt(roomsResult.rows[0].count),
+      timetablesGenerated: parseInt(timetablesResult.rows[0].count)
+    });
+  } catch (error) {
+    console.error('Error fetching admin dashboard stats:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard statistics' });
+  }
+});
+
+// Timetables CRUD operations
+router.get('/timetables', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT t.*, u.name as created_by_name
+      FROM timetables t
+      LEFT JOIN users u ON t.created_by = u.id
+      ORDER BY t.created_at DESC
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching timetables:', error);
+    res.status(500).json({ error: 'Failed to fetch timetables' });
+  }
+});
+
+router.post('/timetables', async (req, res) => {
+  const { name, semester, academic_year, created_by } = req.body;
+  try {
+    const result = await pool.query(
+      'INSERT INTO timetables (name, semester, academic_year, created_by) VALUES ($1, $2, $3, $4) RETURNING *',
+      [name, semester, academic_year, created_by]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating timetable:', error);
+    res.status(500).json({ error: 'Failed to create timetable' });
+  }
+});
+
+router.put('/timetables/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, semester, academic_year, status } = req.body;
+  try {
+    const result = await pool.query(
+      'UPDATE timetables SET name = $1, semester = $2, academic_year = $3, status = $4 WHERE id = $5 RETURNING *',
+      [name, semester, academic_year, status, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Timetable not found' });
+    }
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating timetable:', error);
+    res.status(500).json({ error: 'Failed to update timetable' });
+  }
+});
+
+router.delete('/timetables/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM timetables WHERE id = $1 RETURNING *', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Timetable not found' });
+    }
+    res.json({ message: 'Timetable deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting timetable:', error);
+    res.status(500).json({ error: 'Failed to delete timetable' });
+  }
+});
+
 module.exports = router;
