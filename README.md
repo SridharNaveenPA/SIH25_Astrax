@@ -371,7 +371,7 @@ This project is developed for the **Smart India Hackathon (SIH) 2025** program -
 **Problem Statement Title**: AI-Based Timetable Generation System aligned with NEP 2020 for Multidisciplinary Education Structures  
 **Project Category**: Software  
 **Team**: Astrax  
-**Institution**: [Your Institution Name]
+**Institution**: Madras Institute of Technology, Anna University
 
 ### 📜 Usage & Distribution
 
