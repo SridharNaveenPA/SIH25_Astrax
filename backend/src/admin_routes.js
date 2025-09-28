@@ -215,9 +215,10 @@ router.delete('/faculty/:id', async (req, res) => {
 router.get('/instructors', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT u.id, u.name, f.department 
+      SELECT u.id, u.name, 
+        COALESCE(f.department, 'Computer Science') as department 
       FROM users u 
-      JOIN faculty f ON u.id = f.user_id 
+      LEFT JOIN faculty f ON u.id = f.user_id 
       WHERE u.role = 'staff'
       ORDER BY u.name
     `);
