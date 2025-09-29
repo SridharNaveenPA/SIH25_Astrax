@@ -91,7 +91,7 @@ const RoomManagement = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this room?')) return;
+    if (!confirm('Are you sure you want to delete this room? This will also remove it from any existing timetables.')) return;
     
     try {
       const response = await fetch(`http://localhost:4000/api/admin/rooms/${id}`, {
@@ -100,6 +100,9 @@ const RoomManagement = () => {
 
       if (response.ok) {
         fetchRooms();
+        // Trigger event to notify other components
+        window.dispatchEvent(new CustomEvent('roomDataChanged'));
+        alert('Room deleted successfully');
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to delete room');

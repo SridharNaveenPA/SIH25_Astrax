@@ -114,7 +114,7 @@ const FacultyManagement = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this faculty member? This will also delete their user account.')) return;
+    if (!confirm('Are you sure you want to delete this faculty member? This will also delete their user account and remove them from all assigned subjects.')) return;
     
     try {
       const response = await fetch(`http://localhost:4000/api/admin/faculty/${id}`, {
@@ -123,6 +123,9 @@ const FacultyManagement = () => {
 
       if (response.ok) {
         fetchFaculty();
+        // Trigger a custom event to notify other components that faculty data has changed
+        window.dispatchEvent(new CustomEvent('facultyDataChanged'));
+        alert('Faculty member deleted successfully');
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to delete faculty');

@@ -1,6 +1,9 @@
 const express = require('express');
 const pool = require('./db');
 const router = express.Router();
+const TimetableGenerator = require('./timetable_generator');
+const ExportUtils = require('./export_utils');
+const PDFUtils = require('./pdf_utils');
 
 // Middleware to verify student authentication
 const verifyStudent = (req, res, next) => {
@@ -250,6 +253,230 @@ router.get('/timetable', verifyStudent, async (req, res) => {
   } catch (error) {
     console.error('Error fetching student timetable:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch timetable' });
+  }
+});
+
+// Export student timetable as Excel
+router.get('/timetable/export/excel', verifyStudent, async (req, res) => {
+  try {
+    // Get student info
+    const studentResult = await pool.query(
+      'SELECT name, email FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    
+    if (studentResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    
+    const student = studentResult.rows[0];
+    
+    // Get student timetable data
+    const result = await pool.query(`
+      SELECT 
+        ts.day_of_week,
+        ts.time_slot,
+        ts.start_time,
+        ts.end_time,
+        ts.slot_type,
+        s.course_code,
+        s.course_name,
+        r.room_id,
+        r.building,
+        u.name as instructor_name
+      FROM timetable_slots ts
+      JOIN student_enrollments se ON ts.subject_id = se.subject_id
+      JOIN subjects s ON ts.subject_id = s.id
+      JOIN rooms r ON ts.room_id = r.id
+      LEFT JOIN users u ON ts.instructor_id = u.id
+      WHERE se.student_id = $1 
+        AND se.status = 'enrolled'
+        AND ts.timetable_id IN (
+          SELECT id FROM timetables WHERE status = 'published' ORDER BY created_at DESC LIMIT 1
+        )
+      ORDER BY ts.day_of_week, ts.time_slot
+    `, [req.user.id]);
+    
+    // Convert to timetable grid format
+    const timetable = Array.from({ length: 5 }, () => Array.from({ length: 8 }, () => []));
+    
+    result.rows.forEach(slot => {
+      const day = slot.day_of_week - 1;
+      const period = slot.time_slot;
+      
+      if (day >= 0 && day < 5 && period >= 0 && period < 8) {
+        const entry = {
+          course_code: slot.course_code,
+          instructor: slot.instructor_name,
+          room: slot.room_id
+        };
+        timetable[day][period].push(entry);
+      }
+    });
+    
+    const timetableData = {
+      timetable: timetable,
+      schedule_data: result.rows
+    };
+    
+    const metadata = {
+      name: student.name,
+      type: 'Student',
+      email: student.email
+    };
+    
+    const excelBuffer = ExportUtils.generateExcelTimetable(timetableData, 'student', metadata);
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${student.name}_timetable.xlsx"`);
+    res.send(excelBuffer);
+    
+  } catch (error) {
+    console.error('Error exporting student timetable to Excel:', error);
+    res.status(500).json({ success: false, message: 'Error exporting timetable' });
+  }
+});
+
+// Export student timetable as CSV (enhanced)
+router.get('/timetable/export/csv', verifyStudent, async (req, res) => {
+  try {
+    // Get student info
+    const studentResult = await pool.query(
+      'SELECT name, email FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    
+    if (studentResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Student not found' });
+    }
+    
+    const student = studentResult.rows[0];
+    
+    // Get student timetable data
+    const result = await pool.query(`
+      SELECT 
+        ts.day_of_week,
+        ts.time_slot,
+        ts.start_time,
+        ts.end_time,
+        ts.slot_type,
+        s.course_code,
+        s.course_name,
+        r.room_id,
+        r.building,
+        u.name as instructor_name
+      FROM timetable_slots ts
+      JOIN student_enrollments se ON ts.subject_id = se.subject_id
+      JOIN subjects s ON ts.subject_id = s.id
+      JOIN rooms r ON ts.room_id = r.id
+      LEFT JOIN users u ON ts.instructor_id = u.id
+      WHERE se.student_id = $1 
+        AND se.status = 'enrolled'
+        AND ts.timetable_id IN (
+          SELECT id FROM timetables WHERE status = 'published' ORDER BY created_at DESC LIMIT 1
+        )
+      ORDER BY ts.day_of_week, ts.time_slot
+    `, [req.user.id]);
+    
+    // Convert to timetable grid format
+    const timetable = Array.from({ length: 5 }, () => Array.from({ length: 8 }, () => []));
+    
+    result.rows.forEach(slot => {
+      const day = slot.day_of_week - 1;
+      const period = slot.time_slot;
+      
+      if (day >= 0 && day < 5 && period >= 0 && period < 8) {
+        const entry = {
+          course_code: slot.course_code,
+          instructor: slot.instructor_name,
+          room: slot.room_id
+        };
+        timetable[day][period].push(entry);
+      }
+    });
+    
+    const timetableData = {
+      timetable: timetable,
+      schedule_data: result.rows
+    };
+    
+    const metadata = {
+      name: student.name,
+      type: 'Student',
+      email: student.email
+    };
+    
+    const csvContent = ExportUtils.generateCSVData(timetableData, 'student', metadata);
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${student.name}_timetable.csv"`);
+    res.send('\uFEFF' + csvContent); // Add BOM for proper UTF-8 encoding
+    
+  } catch (error) {
+    console.error('Error exporting student timetable to CSV:', error);
+    res.status(500).json({ success: false, message: 'Error exporting timetable' });
+  }
+});
+
+// Export student timetable as PDF
+router.get('/timetable/export/pdf', verifyStudent, async (req, res) => {
+  try {
+    const student = req.user;
+    
+    // Get student's subjects
+    const subjectsResult = await pool.query(`
+      SELECT s.*, u.name as instructor_name
+      FROM subjects s
+      LEFT JOIN users u ON s.instructor_id = u.id
+      WHERE s.course_code IN (
+        SELECT subject_code FROM student_subjects 
+        WHERE student_id = $1
+      )
+      ORDER BY s.course_code
+    `, [student.id]);
+    
+    const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_id');
+    
+    // Convert to format expected by generator
+    const subjects = {};
+    subjectsResult.rows.forEach(subject => {
+      subjects[subject.course_code] = {
+        course_code: subject.course_code,
+        course_name: subject.course_name,
+        instructor_name: subject.instructor_name,
+        instructor_id: subject.instructor_id,
+        course_type: subject.course_type
+      };
+    });
+    
+    const rooms = {};
+    roomsResult.rows.forEach(room => {
+      rooms[room.room_id] = room;
+    });
+    
+    // Generate timetable
+    const generator = new TimetableGenerator();
+    const result = await generator.generateMasterTimetable(subjects, rooms, {}, {});
+    
+    if (!result.success) {
+      return res.status(500).json({ success: false, message: 'Failed to generate timetable' });
+    }
+    
+    const metadata = {
+      name: `${student.name} - Student Timetable`,
+      department: student.department || 'Not specified',
+      generatedBy: student.name
+    };
+    
+    const pdfBuffer = PDFUtils.generateTimetablePDF(result, 'student', metadata);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${student.name}_timetable.pdf"`);
+    res.send(Buffer.from(pdfBuffer, 'binary'));
+    
+  } catch (error) {
+    console.error('Error exporting student timetable to PDF:', error);
+    res.status(500).json({ success: false, message: 'Error exporting timetable' });
   }
 });
 

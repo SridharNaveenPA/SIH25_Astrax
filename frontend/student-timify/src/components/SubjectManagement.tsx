@@ -87,6 +87,30 @@ const SubjectManagement = () => {
     fetchSubjects();
     fetchInstructors();
     fetchCourses();
+    
+    // Listen for data changes from other components
+    const handleFacultyChange = () => {
+      fetchInstructors();
+      fetchSubjects(); // Also refresh subjects in case instructor assignments changed
+    };
+    
+    const handleRoomChange = () => {
+      fetchSubjects(); // Refresh subjects in case room references changed
+    };
+    
+    const handleSubjectChange = () => {
+      fetchCourses(); // Refresh courses for prerequisites dropdown
+    };
+    
+    window.addEventListener('facultyDataChanged', handleFacultyChange);
+    window.addEventListener('roomDataChanged', handleRoomChange);
+    window.addEventListener('subjectDataChanged', handleSubjectChange);
+    
+    return () => {
+      window.removeEventListener('facultyDataChanged', handleFacultyChange);
+      window.removeEventListener('roomDataChanged', handleRoomChange);
+      window.removeEventListener('subjectDataChanged', handleSubjectChange);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -152,7 +176,7 @@ const SubjectManagement = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this subject?')) return;
+    if (!confirm('Are you sure you want to delete this subject? This will also remove it from all related enrollments and timetables.')) return;
     
     try {
       const response = await fetch(`http://localhost:4000/api/admin/subjects/${id}`, {
@@ -161,6 +185,10 @@ const SubjectManagement = () => {
 
       if (response.ok) {
         fetchSubjects();
+        fetchCourses(); // Refresh courses list for prerequisites
+        // Trigger event to notify other components
+        window.dispatchEvent(new CustomEvent('subjectDataChanged'));
+        alert('Subject deleted successfully');
       } else {
         const error = await response.json();
         alert(error.error || 'Failed to delete subject');

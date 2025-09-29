@@ -1,6 +1,8 @@
 const express = require('express');
 const pool = require('./db');
 const TimetableGenerator = require('./timetable_generator');
+const ExportUtils = require('./export_utils');
+const PDFUtils = require('./pdf_utils');
 const router = express.Router();
 
 // Rooms CRUD operations
@@ -53,12 +55,23 @@ router.put('/rooms/:id', async (req, res) => {
 router.delete('/rooms/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    // Start transaction
+    await pool.query('BEGIN');
+    
+    // Delete related timetable slots first
+    await pool.query('DELETE FROM timetable_slots WHERE room_id = $1', [id]);
+    
+    // Delete the room
     const result = await pool.query('DELETE FROM rooms WHERE id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) {
+      await pool.query('ROLLBACK');
       return res.status(404).json({ error: 'Room not found' });
     }
+    
+    await pool.query('COMMIT');
     res.json({ message: 'Room deleted successfully' });
   } catch (error) {
+    await pool.query('ROLLBACK');
     console.error('Error deleting room:', error);
     res.status(500).json({ error: 'Failed to delete room' });
   }
@@ -119,12 +132,26 @@ router.put('/subjects/:id', async (req, res) => {
 router.delete('/subjects/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    // Start transaction
+    await pool.query('BEGIN');
+    
+    // Delete related records first to avoid foreign key constraint violations
+    await pool.query('DELETE FROM faculty_subjects WHERE subject_id = $1', [id]);
+    await pool.query('DELETE FROM student_enrollments WHERE subject_id = $1', [id]);
+    await pool.query('DELETE FROM subject_prerequisites WHERE subject_id = $1 OR prerequisite_id = $1', [id]);
+    await pool.query('DELETE FROM timetable_slots WHERE subject_id = $1', [id]);
+    
+    // Delete the subject
     const result = await pool.query('DELETE FROM subjects WHERE id = $1 RETURNING *', [id]);
     if (result.rows.length === 0) {
+      await pool.query('ROLLBACK');
       return res.status(404).json({ error: 'Subject not found' });
     }
+    
+    await pool.query('COMMIT');
     res.json({ message: 'Subject deleted successfully' });
   } catch (error) {
+    await pool.query('ROLLBACK');
     console.error('Error deleting subject:', error);
     res.status(500).json({ error: 'Failed to delete subject' });
   }
@@ -193,20 +220,37 @@ router.put('/faculty/:id', async (req, res) => {
 router.delete('/faculty/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    // Start transaction
+    await pool.query('BEGIN');
+    
     // Get user_id first
     const facultyResult = await pool.query('SELECT user_id FROM faculty WHERE id = $1', [id]);
     if (facultyResult.rows.length === 0) {
+      await pool.query('ROLLBACK');
       return res.status(404).json({ error: 'Faculty not found' });
     }
     
-    // Delete faculty record (this will cascade delete faculty_subjects)
+    const userId = facultyResult.rows[0].user_id;
+    
+    // Delete related records first
+    await pool.query('DELETE FROM faculty_subjects WHERE faculty_id = $1', [id]);
+    
+    // Update subjects that reference this instructor to NULL
+    await pool.query('UPDATE subjects SET instructor_id = NULL WHERE instructor_id = $1', [userId]);
+    
+    // Delete timetable slots assigned to this instructor
+    await pool.query('DELETE FROM timetable_slots WHERE instructor_id = $1', [userId]);
+    
+    // Delete faculty record
     await pool.query('DELETE FROM faculty WHERE id = $1', [id]);
     
     // Delete user account
-    await pool.query('DELETE FROM users WHERE id = $1', [facultyResult.rows[0].user_id]);
+    await pool.query('DELETE FROM users WHERE id = $1', [userId]);
     
+    await pool.query('COMMIT');
     res.json({ message: 'Faculty deleted successfully' });
   } catch (error) {
+    await pool.query('ROLLBACK');
     console.error('Error deleting faculty:', error);
     res.status(500).json({ error: 'Failed to delete faculty' });
   }
@@ -263,6 +307,20 @@ router.put('/credit-limits/:semester_number', async (req, res) => {
   } catch (error) {
     console.error('Error updating credit limit:', error);
     res.status(500).json({ error: 'Failed to update credit limit' });
+  }
+});
+
+router.delete('/credit-limits/:semester_number', async (req, res) => {
+  const { semester_number } = req.params;
+  try {
+    const result = await pool.query('DELETE FROM credit_limits WHERE semester_number = $1 RETURNING *', [semester_number]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Credit limit not found' });
+    }
+    res.json({ message: 'Credit limit deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting credit limit:', error);
+    res.status(500).json({ error: 'Failed to delete credit limit' });
   }
 });
 
@@ -669,6 +727,279 @@ router.get('/master-timetable', async (req, res) => {
       success: false,
       error: 'Failed to fetch master timetable',
       message: error.message 
+    });
+  }
+});
+
+// Export master timetable as Excel
+router.get('/master-timetable/export/excel', async (req, res) => {
+  try {
+    // Get subjects, rooms, faculty data
+    const subjectsResult = await pool.query(`
+      SELECT s.*, u.name as instructor_name
+      FROM subjects s
+      LEFT JOIN users u ON s.instructor_id = u.id
+      ORDER BY s.course_code
+    `);
+    
+    const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_id');
+    
+    // Convert to format expected by generator
+    const subjects = {};
+    subjectsResult.rows.forEach(subject => {
+      subjects[subject.course_code] = {
+        course_code: subject.course_code,
+        course_name: subject.course_name,
+        instructor_name: subject.instructor_name,
+        instructor_id: subject.instructor_id,
+        course_type: subject.course_type
+      };
+    });
+    
+    const rooms = {};
+    roomsResult.rows.forEach(room => {
+      rooms[room.room_id] = room;
+    });
+    
+    // Generate timetable
+    const generator = new TimetableGenerator();
+    const result = await generator.generateMasterTimetable(subjects, rooms, {}, {});
+    
+    if (!result.success) {
+      return res.status(500).json({ success: false, message: 'Failed to generate timetable' });
+    }
+    
+    const metadata = {
+      name: 'Master Timetable',
+      department: 'All Departments',
+      generatedBy: 'Admin'
+    };
+    
+    const excelBuffer = ExportUtils.generateExcelTimetable(result, 'master', metadata);
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="master_timetable.xlsx"');
+    res.send(excelBuffer);
+    
+  } catch (error) {
+    console.error('Error exporting master timetable to Excel:', error);
+    res.status(500).json({ success: false, message: 'Error exporting timetable' });
+  }
+});
+
+// Export master timetable as CSV
+router.get('/master-timetable/export/csv', async (req, res) => {
+  try {
+    // Get subjects, rooms, faculty data
+    const subjectsResult = await pool.query(`
+      SELECT s.*, u.name as instructor_name
+      FROM subjects s
+      LEFT JOIN users u ON s.instructor_id = u.id
+      ORDER BY s.course_code
+    `);
+    
+    const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_id');
+    
+    // Convert to format expected by generator
+    const subjects = {};
+    subjectsResult.rows.forEach(subject => {
+      subjects[subject.course_code] = {
+        course_code: subject.course_code,
+        course_name: subject.course_name,
+        instructor_name: subject.instructor_name,
+        instructor_id: subject.instructor_id,
+        course_type: subject.course_type
+      };
+    });
+    
+    const rooms = {};
+    roomsResult.rows.forEach(room => {
+      rooms[room.room_id] = room;
+    });
+    
+    // Generate timetable
+    const generator = new TimetableGenerator();
+    const result = await generator.generateMasterTimetable(subjects, rooms, {}, {});
+    
+    if (!result.success) {
+      return res.status(500).json({ success: false, message: 'Failed to generate timetable' });
+    }
+    
+    const metadata = {
+      name: 'Master Timetable',
+      department: 'All Departments',
+      generatedBy: 'Admin'
+    };
+    
+    const csvContent = ExportUtils.generateCSVData(result, 'master', metadata);
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="master_timetable.csv"');
+    res.send('\uFEFF' + csvContent);
+    
+  } catch (error) {
+    console.error('Error exporting master timetable to CSV:', error);
+    res.status(500).json({ success: false, message: 'Error exporting timetable' });
+  }
+});
+
+// Export staff timetable as Excel
+router.get('/staff-timetable/export/excel/:facultyId', async (req, res) => {
+  try {
+    const { facultyId } = req.params;
+    
+    // Get faculty info
+    const facultyResult = await pool.query(
+      'SELECT name, email, department FROM users WHERE id = $1 AND role = $2',
+      [facultyId, 'staff']
+    );
+    
+    if (facultyResult.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Faculty not found' });
+    }
+    
+    const faculty = facultyResult.rows[0];
+    
+    // Get staff timetable data
+    const result = await pool.query(`
+      SELECT 
+        ts.day_of_week,
+        ts.time_slot,
+        ts.start_time,
+        ts.end_time,
+        ts.slot_type,
+        s.course_code,
+        s.course_name,
+        r.room_id,
+        r.building
+      FROM timetable_slots ts
+      JOIN subjects s ON ts.subject_id = s.id
+      JOIN rooms r ON ts.room_id = r.id
+      WHERE ts.instructor_id = $1
+        AND ts.timetable_id IN (
+          SELECT id FROM timetables WHERE status = 'published' ORDER BY created_at DESC LIMIT 1
+        )
+      ORDER BY ts.day_of_week, ts.time_slot
+    `, [facultyId]);
+    
+    // Convert to timetable grid format
+    const timetable = Array.from({ length: 5 }, () => Array.from({ length: 8 }, () => []));
+    
+    result.rows.forEach(slot => {
+      const day = slot.day_of_week - 1;
+      const period = slot.time_slot;
+      
+      if (day >= 0 && day < 5 && period >= 0 && period < 8) {
+        const entry = {
+          course_code: slot.course_code,
+          instructor: faculty.name,
+          room: slot.room_id
+        };
+        timetable[day][period].push(entry);
+      }
+    });
+    
+    const timetableData = {
+      timetable: timetable,
+      schedule_data: result.rows
+    };
+    
+    const metadata = {
+      name: faculty.name,
+      department: faculty.department,
+      type: 'Staff'
+    };
+    
+    const excelBuffer = ExportUtils.generateExcelTimetable(timetableData, 'staff', metadata);
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${faculty.name}_timetable.xlsx"`);
+    res.send(excelBuffer);
+    
+  } catch (error) {
+    console.error('Error exporting staff timetable to Excel:', error);
+    res.status(500).json({ success: false, message: 'Error exporting timetable' });
+  }
+});
+
+// Export master timetable as PDF
+router.get('/master-timetable/export/pdf', async (req, res) => {
+  try {
+    // Get subjects, rooms, faculty data
+    const subjectsResult = await pool.query(`
+      SELECT s.*, u.name as instructor_name
+      FROM subjects s
+      LEFT JOIN users u ON s.instructor_id = u.id
+      ORDER BY s.course_code
+    `);
+    
+    const roomsResult = await pool.query('SELECT * FROM rooms ORDER BY room_id');
+    
+    // Convert to format expected by generator
+    const subjects = {};
+    subjectsResult.rows.forEach(subject => {
+      subjects[subject.course_code] = {
+        course_code: subject.course_code,
+        course_name: subject.course_name,
+        instructor_name: subject.instructor_name,
+        instructor_id: subject.instructor_id,
+        course_type: subject.course_type
+      };
+    });
+    
+    const rooms = {};
+    roomsResult.rows.forEach(room => {
+      rooms[room.room_id] = room;
+    });
+    
+    // Generate timetable
+    const generator = new TimetableGenerator();
+    const result = await generator.generateMasterTimetable(subjects, rooms, {}, {});
+    
+    if (!result.success) {
+      return res.status(500).json({ success: false, message: 'Failed to generate timetable' });
+    }
+    
+    const metadata = {
+      name: 'Master Timetable',
+      department: 'All Departments',
+      generatedBy: 'Admin'
+    };
+    
+    const pdfBuffer = PDFUtils.generateTimetablePDF(result, 'master', metadata);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="master_timetable.pdf"');
+    res.send(Buffer.from(pdfBuffer, 'binary'));
+    
+  } catch (error) {
+    console.error('Error exporting master timetable to PDF:', error);
+    res.status(500).json({ success: false, message: 'Error exporting timetable' });
+  }
+});
+
+// Reset timetables count (delete all generated timetables)
+router.delete('/reset-timetables', async (req, res) => {
+  try {
+    // Delete all timetable slots first (due to foreign key constraints)
+    await pool.query('DELETE FROM timetable_slots');
+    
+    // Delete all student timetable views
+    await pool.query('DELETE FROM student_timetable_view');
+    
+    // Delete all timetables
+    const result = await pool.query('DELETE FROM timetables RETURNING *');
+    
+    res.json({ 
+      success: true, 
+      message: `Successfully reset timetables. Deleted ${result.rowCount} timetables.`,
+      deletedCount: result.rowCount
+    });
+  } catch (error) {
+    console.error('Error resetting timetables:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to reset timetables' 
     });
   }
 });

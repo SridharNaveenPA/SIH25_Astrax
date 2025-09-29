@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Calendar, RefreshCw, Download } from "lucide-react";
+import { Clock, Calendar, RefreshCw, Download, FileSpreadsheet, FileText, FileDown } from "lucide-react";
 import { toast } from "sonner";
+import { saveAs } from 'file-saver';
 
 interface TimetableSlot {
   course_code: string;
@@ -71,6 +72,57 @@ const MasterTimetable = () => {
       toast.error('Error generating timetable');
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const exportToExcel = async () => {
+    try {
+      const response = await fetch('http://localhost:4000/api/admin/master-timetable/export/excel');
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        saveAs(blob, 'master_timetable.xlsx');
+        toast.success('Master timetable exported to Excel successfully!');
+      } else {
+        toast.error('Failed to export timetable');
+      }
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Error exporting timetable');
+    }
+  };
+
+  const exportToCSV = async () => {
+    try {
+      const response = await fetch('http://localhost:4000/api/admin/master-timetable/export/csv');
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        saveAs(blob, 'master_timetable.csv');
+        toast.success('Master timetable exported to CSV successfully!');
+      } else {
+        toast.error('Failed to export timetable');
+      }
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      toast.error('Error exporting timetable');
+    }
+  };
+
+  const exportToPDF = async () => {
+    try {
+      const response = await fetch('http://localhost:4000/api/admin/master-timetable/export/pdf');
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        saveAs(blob, 'master_timetable.pdf');
+        toast.success('Master timetable exported to PDF successfully!');
+      } else {
+        toast.error('Failed to export timetable');
+      }
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Error exporting timetable');
     }
   };
 
@@ -148,11 +200,27 @@ const MasterTimetable = () => {
             </Button>
             <Button 
               variant="outline" 
-              onClick={downloadTimetable}
+              onClick={exportToExcel}
               disabled={loading || timetable.length === 0}
             >
-              <Download className="w-4 h-4 mr-2" />
-              Download
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Excel
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={exportToCSV}
+              disabled={loading || timetable.length === 0}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              CSV
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={exportToPDF}
+              disabled={loading || timetable.length === 0}
+            >
+              <FileDown className="w-4 h-4 mr-2" />
+              PDF
             </Button>
             <Button 
               onClick={generateTimetable}

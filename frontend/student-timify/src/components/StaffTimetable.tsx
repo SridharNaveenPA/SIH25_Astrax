@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Calendar, RefreshCw, Download, User } from "lucide-react";
+import { Clock, Calendar, RefreshCw, Download, User, FileSpreadsheet, FileText, FileDown } from "lucide-react";
 import { toast } from "sonner";
+import { saveAs } from 'file-saver';
 
 interface TimetableSlot {
   course_code: string;
@@ -51,6 +52,80 @@ const StaffTimetable = () => {
       toast.error('Error fetching schedule');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const exportToExcel = async () => {
+    try {
+      const userId = localStorage.getItem('userId');
+      const response = await fetch(`http://localhost:4000/api/admin/staff-timetable/export/excel/${userId}`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        saveAs(blob, `${staffName || 'staff'}_timetable.xlsx`);
+        toast.success('Staff timetable exported to Excel successfully!');
+      } else {
+        toast.error('Failed to export timetable');
+      }
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Error exporting timetable');
+    }
+  };
+
+  const exportToCSV = async () => {
+    try {
+      // Generate CSV from current timetable data
+      let csvContent = `Staff Timetable - ${staffName}\r\n`;
+      csvContent += `Generated on: ${new Date().toLocaleDateString()}\r\n\r\n`;
+      csvContent += 'Time,' + days.join(',') + '\r\n';
+      
+      timeSlots.forEach((timeSlot, slotIndex) => {
+        let row = `"${timeSlot}"`;
+        
+        days.forEach((day, dayIndex) => {
+          let cellContent = '';
+          
+          if (slotIndex === 4) { // Lunch break
+            cellContent = 'LUNCH BREAK';
+          } else {
+            const actualSlotIndex = slotIndex > 4 ? slotIndex - 1 : slotIndex;
+            const slots = timetable[dayIndex]?.[actualSlotIndex] || [];
+            
+            if (slots.length > 0) {
+              cellContent = slots.map(slot => 
+                `${slot.course_code} | ${slot.room}`
+              ).join('; ');
+            } else {
+              cellContent = 'Free';
+            }
+          }
+          
+          row += `,"${cellContent}"`;
+        });
+        
+        csvContent += row + '\r\n';
+      });
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      saveAs(blob, `${staffName || 'staff'}_timetable.csv`);
+      toast.success('Staff timetable exported to CSV successfully!');
+      
+    } catch (error) {
+      console.error('Error exporting to CSV:', error);
+      toast.error('Error exporting timetable');
+    }
+  };
+
+  const exportToPDF = async () => {
+    try {
+      // Note: This would require a staff-specific PDF export endpoint
+      // For now, we'll generate PDF from current data similar to CSV
+      toast.info('PDF export for staff timetables will be available soon!');
+      
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Error exporting timetable');
     }
   };
 
@@ -136,11 +211,27 @@ const StaffTimetable = () => {
             </Button>
             <Button 
               variant="outline" 
-              onClick={downloadTimetable}
+              onClick={exportToExcel}
               disabled={loading || timetable.length === 0}
             >
-              <Download className="w-4 h-4 mr-2" />
-              Download
+              <FileSpreadsheet className="w-4 h-4 mr-2" />
+              Excel
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={exportToCSV}
+              disabled={loading || timetable.length === 0}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              CSV
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={exportToPDF}
+              disabled={loading || timetable.length === 0}
+            >
+              <FileDown className="w-4 h-4 mr-2" />
+              PDF
             </Button>
           </div>
         </div>

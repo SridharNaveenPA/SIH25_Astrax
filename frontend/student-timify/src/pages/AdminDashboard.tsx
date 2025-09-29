@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, BookOpen, Users, MapPin, Calendar, LogOut } from "lucide-react";
+import { ArrowLeft, BookOpen, Users, MapPin, Calendar, LogOut, RotateCcw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import RoomManagement from "@/components/RoomManagement";
 import SubjectManagement from "@/components/SubjectManagement";
 import FacultyManagement from "@/components/FacultyManagement";
@@ -51,6 +52,35 @@ const AdminDashboard = () => {
     navigate("/");
   };
 
+  const resetTimetables = async () => {
+    if (!confirm("Are you sure you want to reset all generated timetables? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("http://localhost:4000/api/admin/reset-timetables", {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        toast.success(data.message);
+        fetchDashboardStats(); // Refresh stats to show updated count
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to reset timetables");
+      }
+    } catch (error) {
+      console.error("Error resetting timetables:", error);
+      toast.error("Error resetting timetables");
+    }
+  };
+
   const stats = [
     { title: "Total Subjects", value: dashboardStats.totalSubjects.toString(), icon: BookOpen },
     { title: "Faculty Members", value: dashboardStats.facultyMembers.toString(), icon: Users },
@@ -85,16 +115,30 @@ const AdminDashboard = () => {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           {stats.map((stat, index) => {
             const Icon = stat.icon;
+            const isTimetablesStat = stat.title === "Timetables Generated";
             return (
               <Card key={index}>
-                <CardContent className="flex items-center p-6">
-                  <Icon className="w-8 h-8 text-primary mr-3" />
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                    <p className="text-2xl font-bold">
-                      {loading ? "..." : stat.value}
-                    </p>
+                <CardContent className="flex items-center justify-between p-6">
+                  <div className="flex items-center">
+                    <Icon className="w-8 h-8 text-primary mr-3" />
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
+                      <p className="text-2xl font-bold">
+                        {loading ? "..." : stat.value}
+                      </p>
+                    </div>
                   </div>
+                  {isTimetablesStat && !loading && parseInt(stat.value) > 0 && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={resetTimetables}
+                      className="ml-2"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-1" />
+                      Reset
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             );
